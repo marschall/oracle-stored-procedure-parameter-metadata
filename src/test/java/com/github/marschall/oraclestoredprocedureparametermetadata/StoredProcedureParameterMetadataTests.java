@@ -1,4 +1,4 @@
-package com.github.marschall.oraclestoreprocedureparametermetadata;
+package com.github.marschall.oraclestoredprocedureparametermetadata;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;

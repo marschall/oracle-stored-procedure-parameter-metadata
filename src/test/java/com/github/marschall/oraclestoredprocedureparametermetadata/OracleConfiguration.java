@@ -1,4 +1,4 @@
-package com.github.marschall.oraclestoreprocedureparametermetadata;
+package com.github.marschall.oraclestoredprocedureparametermetadata;
 
 import java.util.Properties;
 
