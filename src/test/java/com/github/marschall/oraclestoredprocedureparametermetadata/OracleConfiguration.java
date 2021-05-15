@@ -22,6 +22,7 @@ public class OracleConfiguration {
     dataSource.setPassword("Cent-Quick-Space-Bath-8");
     Properties connectionProperties = new Properties();
     connectionProperties.setProperty("oracle.net.disableOob", "true");
+    connectionProperties.setProperty("oracle.jdbc.defaultConnectionValidation", "SOCKET");
     dataSource.setConnectionProperties(connectionProperties);
     return dataSource;
   }

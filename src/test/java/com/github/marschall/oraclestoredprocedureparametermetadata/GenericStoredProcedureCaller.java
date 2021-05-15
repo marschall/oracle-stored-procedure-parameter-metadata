@@ -19,7 +19,12 @@ import org.springframework.jdbc.core.SqlOutParameter;
 import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.object.GenericStoredProcedure;
 
-public class GenericStoredProcedureCaller {
+public final class GenericStoredProcedureCaller {
+
+  /**
+   * Key under which the result of functions is stored in the out map.
+   */
+  public static final String RESULT_KEY = "result";
 
   /**
    * {@link Long#MIN_VALUE} as a {@link BigDecimal} constant  for readability and to avoid allocation.
@@ -56,7 +61,6 @@ public class GenericStoredProcedureCaller {
     });
 
     GenericStoredProcedure storedProcedure = this.createStoredProcedure(procedureName, false);
-
     return this.callStoredPrecedure(parameters, storedProcedure, sqlParameters);
   }
 
@@ -66,7 +70,6 @@ public class GenericStoredProcedureCaller {
     });
 
     GenericStoredProcedure storedProcedure = this.createStoredProcedure(procedureName, true);
-
     return this.callStoredPrecedure(parameters, storedProcedure, sqlParameters);
   }
 
@@ -97,7 +100,7 @@ public class GenericStoredProcedureCaller {
     String searchStringEscape = metaData.getSearchStringEscape();
     String catalog = extractCatalog(procedureName, searchStringEscape);
     String procedureNamePattern = extractProcedureName(procedureName, searchStringEscape);
-    try (var resultSet = metaData.getProcedureColumns(catalog, null, procedureNamePattern, null)) {
+    try (ResultSet resultSet = metaData.getProcedureColumns(catalog, null, procedureNamePattern, null)) {
       while (resultSet.next()) {
         SqlParameter sqlParameter = this.getProcedureParameter(resultSet);
         parameters.add(sqlParameter);
@@ -111,7 +114,7 @@ public class GenericStoredProcedureCaller {
     String searchStringEscape = metaData.getSearchStringEscape();
     String catalog = extractCatalog(procedureName, searchStringEscape);
     String procedureNamePattern = extractProcedureName(procedureName, searchStringEscape);
-    try (var resultSet = metaData.getFunctionColumns(catalog, null, procedureNamePattern, null)) {
+    try (ResultSet resultSet = metaData.getFunctionColumns(catalog, null, procedureNamePattern, null)) {
       while (resultSet.next()) {
         SqlParameter sqlParameter = this.getFunctionParameter(resultSet);
         parameters.add(sqlParameter);
@@ -147,7 +150,10 @@ public class GenericStoredProcedureCaller {
         return new SqlParameter(parameterName, dataType);
       case DatabaseMetaData.functionColumnResult:
         if (parameterName == null) {
-          parameterName = "result";
+          // GenericStoredProcedure requires all parameters to have a name
+          // for functions no parameter name is reported
+          // therefore we hard code this
+          parameterName = RESULT_KEY;
         }
         return new SqlOutParameter(parameterName, dataType);
       default:
@@ -187,8 +193,8 @@ public class GenericStoredProcedureCaller {
     if (bd == null) {
       return null;
     }
-    boolean isIntegral = (bd.scale() == 0) || (bd.stripTrailingZeros().scale() == 0);
-    if (isIntegral) {
+    boolean isWholeNumber = (bd.scale() == 0) || (bd.stripTrailingZeros().scale() == 0);
+    if (isWholeNumber) {
       if ((bd.compareTo(INTEGER_MAX_VALUE) <= 0) && (bd.compareTo(INTEGER_MIN_VALUE) >= 0)) {
         return bd.intValueExact();
       }
