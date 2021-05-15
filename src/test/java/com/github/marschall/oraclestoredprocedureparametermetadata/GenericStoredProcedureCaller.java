@@ -1,14 +1,17 @@
 package com.github.marschall.oraclestoredprocedureparametermetadata;
 
+import static java.util.stream.Collectors.toList;
+
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.SqlInOutParameter;
@@ -17,6 +20,26 @@ import org.springframework.jdbc.core.SqlParameter;
 import org.springframework.jdbc.object.GenericStoredProcedure;
 
 public class GenericStoredProcedureCaller {
+
+  /**
+   * {@link Long#MIN_VALUE} as a {@link BigDecimal} constant  for readability and to avoid allocation.
+   */
+  private static final BigDecimal LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE);
+
+  /**
+   * {@link Long#MAX_VALUE} as a {@link BigDecimal} constant  for readability and to avoid allocation.
+   */
+  private static final BigDecimal LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE);
+
+  /**
+   * {@link Integer#MIN_VALUE} as a {@link BigDecimal} constant  for readability and to avoid allocation.
+   */
+  private static final BigDecimal INTEGER_MIN_VALUE = BigDecimal.valueOf(Integer.MIN_VALUE);
+
+  /**
+   * {@link Integer#MAX_VALUE} as a {@link BigDecimal} constant  for readability and to avoid allocation.
+   */
+  private static final BigDecimal INTEGER_MAX_VALUE = BigDecimal.valueOf(Integer.MAX_VALUE);
 
   private final JdbcTemplate jdbcTemplate;
   private final boolean bindByName;
@@ -32,10 +55,9 @@ public class GenericStoredProcedureCaller {
       return this.getProcedureParameters(connection.getMetaData(), procedureName);
     });
 
-    GenericStoredProcedure storedProcedure = new GenericStoredProcedure();
-    storedProcedure.setFunction(false);
+    GenericStoredProcedure storedProcedure = this.createStoredProcedure(procedureName, false);
 
-    return this.callStoredPrecedure(procedureName, parameters, storedProcedure, sqlParameters);
+    return this.callStoredPrecedure(parameters, storedProcedure, sqlParameters);
   }
 
   public Map<String, Object> callFunction(String procedureName, Map<String, Object> parameters) {
@@ -43,15 +65,21 @@ public class GenericStoredProcedureCaller {
       return this.getFunctionParameters(connection.getMetaData(), procedureName);
     });
 
-    GenericStoredProcedure storedProcedure = new GenericStoredProcedure();
-    storedProcedure.setFunction(true);
+    GenericStoredProcedure storedProcedure = this.createStoredProcedure(procedureName, true);
 
-    return this.callStoredPrecedure(procedureName, parameters, storedProcedure, sqlParameters);
+    return this.callStoredPrecedure(parameters, storedProcedure, sqlParameters);
   }
 
-  private Map<String, Object> callStoredPrecedure(String procedureName, Map<String, Object> parameters, GenericStoredProcedure storedProcedure, List<SqlParameter> sqlParameters) {
+  private GenericStoredProcedure createStoredProcedure(String procedureName, boolean isFunction) {
+    GenericStoredProcedure storedProcedure = new GenericStoredProcedure();
+    storedProcedure.setFunction(isFunction);
     storedProcedure.setSql(procedureName);
     storedProcedure.setJdbcTemplate(this.jdbcTemplate);
+    return storedProcedure;
+  }
+
+  private Map<String, Object> callStoredPrecedure(Map<String, Object> parameters, GenericStoredProcedure storedProcedure, List<SqlParameter> sqlParameters) {
+
     for (SqlParameter sqlParameter : sqlParameters) {
       storedProcedure.declareParameter(sqlParameter);
     }
@@ -105,7 +133,7 @@ public class GenericStoredProcedureCaller {
       case DatabaseMetaData.procedureColumnOut:
         return new SqlOutParameter(parameterName, dataType);
       default:
-        throw new IllegalStateException("unknown parameter type: " + parameterType);
+        throw new IllegalStateException("parameter: " + parameterName + " has unknown parameter type: " + parameterType);
     }
   }
 
@@ -123,25 +151,52 @@ public class GenericStoredProcedureCaller {
         }
         return new SqlOutParameter(parameterName, dataType);
       default:
-        throw new IllegalStateException("unknown parameter type: " + parameterType);
+        throw new IllegalStateException("parameter: " + parameterName + " has unknown parameter type: " + parameterType);
     }
   }
 
   private static List<SqlParameter> extractInParameters(List<SqlParameter> sqlInParameters) {
     return sqlInParameters.stream()
                           .filter(SqlParameter::isInputValueProvided)
-                          .collect(Collectors.toList());
+                          .collect(toList());
   }
 
 
   private static Object extractValue(Map<String, Object> parameterMap, SqlParameter sqlParameter) {
     String parameterName = sqlParameter.getName();
+    int sqlType = sqlParameter.getSqlType();
+    // TODO type conversion
+    switch (sqlType) {
+      case Types.VARCHAR:
+      case Types.DATE:
+      case Types.TIMESTAMP:
+      case Types.NUMERIC:
+      case Types.DECIMAL:
+        break;
+      default:
+        break;
+    }
     Object value = parameterMap.get(parameterName);
     if (value == null) {
       value = parameterMap.get(parameterName.toLowerCase());
     }
-    // TODO type conversion
     return value;
+  }
+
+  private static Object convertToSmallestNumberType(BigDecimal bd) {
+    if (bd == null) {
+      return null;
+    }
+    boolean isIntegral = (bd.scale() == 0) || (bd.stripTrailingZeros().scale() == 0);
+    if (isIntegral) {
+      if ((bd.compareTo(INTEGER_MAX_VALUE) <= 0) && (bd.compareTo(INTEGER_MIN_VALUE) >= 0)) {
+        return bd.intValueExact();
+      }
+      if ((bd.compareTo(LONG_MAX_VALUE) <= 0) && (bd.compareTo(LONG_MIN_VALUE) >= 0)) {
+        return bd.longValueExact();
+      }
+    }
+    return bd;
   }
 
   private static Object[] extractProcedureArgumentsArray(Map<String, Object> parameterMap, List<SqlParameter> sqlInParameters) {
