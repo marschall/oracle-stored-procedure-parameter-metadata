@@ -6,6 +6,7 @@ import javax.sql.DataSource;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 
 @Configuration
@@ -23,6 +24,11 @@ public class OracleConfiguration {
     connectionProperties.setProperty("oracle.net.disableOob", "true");
     dataSource.setConnectionProperties(connectionProperties);
     return dataSource;
+  }
+
+  @Bean
+  public JdbcTemplate jdbcTemplate() {
+    return new JdbcTemplate(this.dataSource());
   }
 
 }
