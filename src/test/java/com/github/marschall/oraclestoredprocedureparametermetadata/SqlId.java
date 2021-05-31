@@ -1,6 +1,5 @@
 package com.github.marschall.oraclestoredprocedureparametermetadata;
 
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,8 +22,7 @@ public final class SqlId {
    * http://www.slaviks-blog.com/2010/03/30/oracle-sql_id-and-hash-value/
    * https://blog.tanelpoder.com/2009/02/22/sql_id-is-just-a-fancy-representation-of-hash-value/
    *
-   * @param stmt
-   *          - SQL string without trailing 0x00 Byte
+   * @param stmt SQL string without trailing 0x00 Byte
    * @return sql_id as computed by Oracle
    */
   static String SQL_ID(String stmt) {
@@ -42,31 +40,25 @@ public final class SqlId {
     byte[] b = md.digest();
 
     // bytes 0 - 7 from the hash are not used, only the last 64bits are used
+    // therefore we can use a 64bit long
 
     // most significant unsigned int
-    long val_msb = ((b[11] & 0xFFl) << 24)
-            | ((b[10] & 0xFFl) << 16)
-            | ((b[9] & 0xFFl) << 8)
-            | (b[8] & 0xFFl);
-
-    // least significant unsigned int
-    long val_lsb = ((b[15] & 0xFFl) << 24)
+    long sqln = ((b[11] & 0xFFl) << 56)
+            | ((b[10] & 0xFFl) << 48)
+            | ((b[9] & 0xFFl) << 40)
+            | ((b[8] & 0xFFl) << 32)
+            | ((b[15] & 0xFFl) << 24)
             | ((b[14] & 0xFFl) << 16)
             | ((b[13] & 0xFFl) << 8)
             | (b[12] & 0xFFl);
-
-    // Java does not have unsigned long long, use BigInteger as bite array
-    BigInteger sqln = BigInteger.valueOf(val_msb);
-    sqln = sqln.shiftLeft(32);
-    sqln = sqln.add(BigInteger.valueOf(val_lsb));
 
     // Compute Base32, take 13x 5bits
     // max sql_id length is 13 chars, 13 x 5 => 65bits most significant is always 0
     byte[] result = new byte[RESULT_SIZE];
     for (int i = 0; i < result.length; i++) {
-      int idx = sqln.and(BigInteger.valueOf(31)).intValue(); // & 2b11111
+      int idx = (int) (sqln & 0b11111L);
       result[result.length - i - 1] = toBase65(idx);
-      sqln = sqln.shiftRight(5);
+      sqln = sqln >>> 5;
     }
     return new String(result, StandardCharsets.ISO_8859_1); // US_ASCII fast path is only in JDK 17+
   }
@@ -77,6 +69,7 @@ public final class SqlId {
 
   public static void main(String[] args) {
     System.out.println(0x100);
+    System.out.println(Integer.toHexString(31));
     System.out.println(Integer.toBinaryString(31));
     System.out.println(1 << 8);
   }
