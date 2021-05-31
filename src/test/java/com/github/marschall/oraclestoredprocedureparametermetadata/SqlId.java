@@ -41,6 +41,8 @@ public final class SqlId {
     md.update((byte) 0x00);
     byte[] b = md.digest();
 
+    // bytes 0 - 7 from the hash are not used, only the last 64bits are used
+
     // most significant unsigned int
     long val_msb = ((b[11] & 0xFFl) << 24)
             | ((b[10] & 0xFFl) << 16)
@@ -62,7 +64,7 @@ public final class SqlId {
     // max sql_id length is 13 chars, 13 x 5 => 65bits most significant is always 0
     byte[] result = new byte[RESULT_SIZE];
     for (int i = 0; i < result.length; i++) {
-      int idx = sqln.and(BigInteger.valueOf(31)).intValue();
+      int idx = sqln.and(BigInteger.valueOf(31)).intValue(); // & 2b11111
       result[result.length - i - 1] = toBase65(idx);
       sqln = sqln.shiftRight(5);
     }
@@ -75,6 +77,7 @@ public final class SqlId {
 
   public static void main(String[] args) {
     System.out.println(0x100);
+    System.out.println(Integer.toBinaryString(31));
     System.out.println(1 << 8);
   }
 
