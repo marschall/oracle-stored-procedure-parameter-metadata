@@ -1,5 +1,7 @@
 package com.github.marschall.oraclestoredprocedureparametermetadata;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -42,8 +44,17 @@ public final class SqlId {
     // bytes 0 - 7 from the hash are not used, only the last 64bits are used
     // therefore we can use a 64bit long
 
-    // most significant unsigned int
-    long sqln = ((b[11] & 0xFFl) << 56)
+    // most significant unsigned long
+    long sqln = mostSignificantLong(b);
+
+    return toBase32String(sqln);
+  }
+
+  private static long mostSignificantLong(byte[] b) {
+    if (b.length != 16) {
+      throw new IllegalArgumentException();
+    }
+    return ((b[11] & 0xFFl) << 56)
             | ((b[10] & 0xFFl) << 48)
             | ((b[9] & 0xFFl) << 40)
             | ((b[8] & 0xFFl) << 32)
@@ -51,24 +62,43 @@ public final class SqlId {
             | ((b[14] & 0xFFl) << 16)
             | ((b[13] & 0xFFl) << 8)
             | (b[12] & 0xFFl);
+  }
 
+  private static String toBase32String(long l) {
     // Compute Base32, take 13x 5bits
     // max sql_id length is 13 chars, 13 x 5 => 65bits most significant is always 0
     byte[] result = new byte[RESULT_SIZE];
-    for (int i = 0; i < result.length; i++) {
-      int idx = (int) (sqln & 0b11111L);
-      result[result.length - i - 1] = toBase65(idx);
-      sqln = sqln >>> 5;
-    }
-    return new String(result, StandardCharsets.ISO_8859_1); // US_ASCII fast path is only in JDK 17+
+    result[0] = toBase32((int) ((l & (0b11111L << 60)) >>> 60));
+    result[1] = toBase32((int) ((l & (0b11111L << 55)) >>> 55));
+    result[2] = toBase32((int) ((l & (0b11111L << 50)) >>> 50));
+    result[3] = toBase32((int) ((l & (0b11111L << 45)) >>> 45));
+    result[4] = toBase32((int) ((l & (0b11111L << 40)) >>> 40));
+    result[5] = toBase32((int) ((l & (0b11111L << 35)) >>> 35));
+    result[6] = toBase32((int) ((l & (0b11111L << 30)) >>> 30));
+    result[7] = toBase32((int) ((l & (0b11111L << 25)) >>> 25));
+    result[8] = toBase32((int) ((l & (0b11111L << 20)) >>> 20));
+    result[9] = toBase32((int) ((l & (0b11111L << 15)) >>> 15));
+    result[10] = toBase32((int) ((l & (0b11111L << 10)) >>> 10));
+    result[11] = toBase32((int) ((l & (0b11111L << 5)) >>> 5));
+    result[12] = toBase32((int) (l & 0b11111L));
+    return new String(result, ISO_8859_1); // US_ASCII fast path is only in JDK 17+
   }
 
-  private static byte toBase65(int i) {
+  private static byte toBase32(int i) {
+    if ((i < 0) || (i > 32)) {
+      throw new IllegalArgumentException();
+    }
     return (byte) ALPHABET[i];
+//    if (i < 10) {
+//      return (byte) ('0' + i);
+//    } else {
+//      return (byte) ('a' + (i - 9));
+//    }
   }
 
   public static void main(String[] args) {
     System.out.println(0x100);
+    System.out.println(ALPHABET.length);
     System.out.println(Integer.toHexString(31));
     System.out.println(Integer.toBinaryString(31));
     System.out.println(1 << 8);
