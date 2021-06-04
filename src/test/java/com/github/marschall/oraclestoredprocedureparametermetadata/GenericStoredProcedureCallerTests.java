@@ -8,10 +8,8 @@ import static org.springframework.test.context.TestConstructor.AutowireMode.ALL;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
-import java.sql.Connection;
 import java.util.Map;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,16 +27,6 @@ class GenericStoredProcedureCallerTests {
 
   GenericStoredProcedureCallerTests(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
-  }
-
-  @Test
-  void nativeSql() {
-    String sql = "SELECT * from dual where dummy = ?";
-    String nativeSQL = this.jdbcTemplate.execute((Connection connection) -> {
-      return connection.nativeSQL(sql);
-    });
-    assertEquals("SELECT * from dual where dummy = :1 ", nativeSQL);
-    assertEquals("X", this.jdbcTemplate.queryForObject(sql, String.class, "X"));
   }
 
   @TrueFalse
